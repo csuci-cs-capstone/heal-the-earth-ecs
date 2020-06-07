@@ -34,5 +34,10 @@ pub trait Component: DowncastSync {
     ///other functions.
     ///
     fn text_repr(&self) -> String;
+
+    ///
+    ///Returns a Box<dyn Component> with a deep copy of the data of a concrete Component type.
+    ///
+    fn dynamic_clone(&self) -> Box<dyn Component>;
 }
 impl_downcast!(sync Component);

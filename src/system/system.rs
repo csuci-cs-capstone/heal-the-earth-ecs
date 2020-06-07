@@ -19,7 +19,7 @@ pub trait System: DowncastSync {
     fn query(&self) -> &Query;
 
     ///Performs the operations relatied to the System and updates any caches or other internal data.
-    fn run(&mut self, w: &mut World, dt: f32);
+    fn run(&mut self, w: &World, dt: f32);
 }
 impl_downcast!(sync System);
 
@@ -28,7 +28,7 @@ impl<S: System> System for Box<S> {
         <dyn System>::query(&**self)
     }
 
-    fn run(&mut self, w: &mut World, dt: f32) {
+    fn run(&mut self, w: &World, dt: f32) {
         <dyn System>::run(&mut **self, w, dt);
     }
 }

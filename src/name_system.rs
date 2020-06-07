@@ -1,6 +1,7 @@
 use crate::system::system::*;
 use crate::world::world::*;
 use crate::name_component::*;
+use crate::component::component_manager::*;
 use crate::query::query::*;
 
 pub struct NameSystem {
@@ -20,8 +21,9 @@ impl System for NameSystem {
         &self.query
     }
 
-    fn run(&mut self, w: &mut World, _dt: f32) {
+    fn run(&mut self, w: &World, _dt: f32) {
         let names = w.manager::<NameComponent>().unwrap();
+        let names = downcast_read_lock::<NameComponent>(&names);
 
         for n in names.iter() {
             println!("{}", n.name);

@@ -72,7 +72,7 @@ impl SystemManager {
     }
 
     ///Dispatches all Systems in the order they were inserted, skipping disabled Systems.
-    pub fn execute(&mut self, world: &mut World, dt: f32) {
+    pub fn execute(&mut self, world: &World, dt: f32) {
         for i in 0..self.systems.len() {
             if self.enabled[i] {
                 self.systems[i].run(world, dt);

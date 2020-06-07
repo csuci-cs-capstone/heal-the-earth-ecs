@@ -8,6 +8,7 @@ use std::str::*;
 use std::vec::Vec;
 use std::collections::{HashMap, VecDeque};
 use std::any::*;
+use std::sync::RwLock;
 use std::u32;
 
 ///Manages Entitys and Components and is responsible for organizing the game world.
@@ -19,7 +20,7 @@ use std::u32;
 pub struct World {
     entities: Vec<Entity>,
     free_queue: VecDeque<GenerationalId>,
-    component_managers: HashMap<TypeId, Box<dyn GeneralComponentManager>>,
+    component_managers: HashMap<TypeId, RwLock<Box<dyn GeneralComponentManager>>>,
     quit: bool
 }
 
@@ -32,7 +33,7 @@ impl World {
         let mut free: VecDeque<GenerationalId> = VecDeque::new();
         free.push_front(GenerationalId::new(0, 1));
 
-        let comp_mans: HashMap<TypeId, Box<dyn GeneralComponentManager>> = HashMap::new();
+        let comp_mans: HashMap<TypeId, RwLock<Box<dyn GeneralComponentManager>>> = HashMap::new();
 
         World {
             entities: ents,
@@ -70,6 +71,7 @@ impl World {
             }
 
             for m in self.component_managers.values_mut() {
+                let mut m = m.write().unwrap();
                 let _ = m.general_delete_now(id);
             }
 
@@ -93,15 +95,15 @@ impl World {
     ///Registers a ComponentManager to the World.
     pub fn register_manager<T: ComponentManager>(&mut self, man: T) {
         let dyn_man: Box<dyn ComponentManager<Data = T::Data>> = Box::new(man);
-        self.component_managers.insert(TypeId::of::<T::Data>(), Box::new(dyn_man));
+        self.component_managers.insert(TypeId::of::<T::Data>(), RwLock::new(Box::new(dyn_man)));
     }
 
     ///Returns an immutable reference to a ComponentManager for the given type, if one exists.
-    pub fn manager<T: Component>(&self) -> Option<&Box<dyn ComponentManager<Data=T>>> {
+    pub fn manager<T: Component>(&self) -> Option<std::sync::RwLockReadGuard<Box<dyn GeneralComponentManager>>> {
         if self.component_managers.contains_key(&TypeId::of::<T>()) {
-            let as_any = self.component_managers.get(&TypeId::of::<T>()).unwrap().as_any();
+            let m = self.component_managers.get(&TypeId::of::<T>()).unwrap();
 
-            as_any.downcast_ref::<Box<dyn ComponentManager<Data=T>>>()
+            Some(m.read().unwrap())
 
         } else {
             None
@@ -109,18 +111,19 @@ impl World {
     }
 
     ///Returns a mutable reference to a Componentmanager for a given type, if one exists.
-    pub fn manager_mut<T: Component>(&mut self) -> Option<&mut Box<dyn ComponentManager<Data=T>>> {
+    pub fn manager_mut<T: Component>(&self) -> Option<std::sync::RwLockWriteGuard<Box<dyn GeneralComponentManager>>> {
         if self.component_managers.contains_key(&TypeId::of::<T>()) {
-            let as_any = self.component_managers.get_mut(&TypeId::of::<T>()).unwrap().as_any_mut();
+            let m = self.component_managers.get(&TypeId::of::<T>()).unwrap();
 
-            as_any.downcast_mut::<Box<dyn ComponentManager<Data=T>>>()
+            Some(m.write().unwrap())
+
         } else {
             None
         }
     }
 
     ///Attaches a provided Component to the Entity with the given Id, if it exists.
-    pub fn attach_component<T: Component>(&mut self, handle: GenerationalId, comp: T) -> Result<(), String> {
+    pub fn attach_component<T: Component>(&self, handle: GenerationalId, comp: T) -> Result<(), String> {
 
         if !self.is_alive(handle) {
             return Err(format!("Entity ID {} is not active", handle.id))
@@ -128,10 +131,12 @@ impl World {
 
         let manager = self.manager_mut::<T>();
 
-        let manager = match manager {
+        let mut manager = match manager {
             Some(man) => man,
             None =>  return Err(format!("No successfully registered ComponentManager for {}", comp.type_name()))
         };
+
+        let manager = (*manager).downcast_mut::<Box<dyn ComponentManager<Data=T>>>().unwrap();
 
         let mut comp = comp;
         comp.set_owner(handle);
@@ -139,7 +144,7 @@ impl World {
     }
 
     ///Returns a given Entity and its associated Components in trait object form, if it is active.
-    pub fn components_of(&self, handle: GenerationalId) -> Result<(Entity, Vec<Box<& dyn Component>>), String> {
+    pub fn clone_components_of(&self, handle: GenerationalId) -> Result<(Entity, Vec<Box<dyn Component>>), String> {
         if !self.is_alive(handle) {
             Err(format!("Entity ID {} is not active", handle.id))
         } else {
@@ -147,8 +152,9 @@ impl World {
             let mut v = Vec::new();
 
             for m in self.component_managers.values() {
-                match m.fetch_dyn(handle) {
-                    Some(c) => v.push(c),
+                let r = m.read().unwrap();
+                match r.fetch_dyn(handle) {
+                    Some(c) => v.push(c.dynamic_clone()),
                     None => continue
                 };
             }
@@ -160,7 +166,7 @@ impl World {
     ///Performs any potentially deferred operations such as Entity creation or deletion and updates all ComponentManagers.
     pub fn update(&mut self) {
         for m in self.component_managers.values_mut() {
-            let _ = m.general_update();
+            let _ = m.write().unwrap().general_update();
         }
 
     }

@@ -147,3 +147,11 @@ impl<CM: ComponentManager> GeneralComponentManager for CM {
         self.update()
     }
 }
+
+pub fn downcast_read_lock<'a, T: Component>(guard: &'a std::sync::RwLockReadGuard<Box<dyn GeneralComponentManager>>) -> &'a Box<dyn ComponentManager<Data=T>> {
+    (*guard).downcast_ref::<Box<dyn ComponentManager<Data = T>>>().unwrap()
+}
+
+pub fn downcast_write_lock<'a, T: Component>(guard: &'a mut std::sync::RwLockWriteGuard<Box<dyn GeneralComponentManager>>) -> &'a mut Box<dyn ComponentManager<Data=T>> {
+    (*guard).downcast_mut::<Box<dyn ComponentManager<Data = T>>>().unwrap()
+}

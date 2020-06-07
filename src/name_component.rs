@@ -41,6 +41,15 @@ impl Component for NameComponent {
         let json_str = format!("{{\n\towner: {{\n\t\tid: {},\n\t\tgen: {}\n\t}},\n\tname: {}\n}}", self.owner.id, self.owner.gen, self.name);
         json_str
     }
+
+    fn dynamic_clone(&self) -> Box<dyn Component> {
+        Box::new(
+            NameComponent {
+                owner: self.owner,
+                name: self.name.clone()
+            }
+        )
+    }
 }
 
 #[derive(Debug)]
